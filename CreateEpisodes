@@ -1,0 +1,109 @@
+CREATE DEFINER=`root`@`localhost` PROCEDURE `CreateEpisodes`(IN input_year INT)
+BEGIN
+    DECLARE episode INT DEFAULT 1;
+    DECLARE temp_cook_id INT;
+    DECLARE temp_recipe_id INT;
+    DECLARE temp_judge_id INT;
+    DECLARE temp_cuisine_id INT;
+    DECLARE i INT DEFAULT 1;
+    DECLARE j INT DEFAULT 1;
+
+    -- Loop through episodes
+    WHILE episode <= 10 DO
+        SET i = 1;
+
+        -- Select cooks and recipes for the current episode
+        WHILE i <= 10 DO
+            -- Pick a cuisine
+            SELECT Cuisine_ID INTO temp_cuisine_id
+            FROM Cuisine
+            ORDER BY RAND()
+            LIMIT 1;
+
+            -- Find a cook who hasn't participated in the current episode more than 3 times in a row
+            SELECT Cook_ID INTO temp_cook_id
+            FROM Cook
+            WHERE Cook_ID NOT IN (
+                SELECT Cook_ID FROM (
+                    SELECT Cook_ID FROM Episode
+                    WHERE Year = input_year
+                    AND Episode_Name IN (episode - 1, episode - 2, episode - 3)
+                    GROUP BY Cook_ID
+                    HAVING COUNT(Cook_ID) = 3
+                ) AS RecentCooks
+            )
+            AND Cook_ID IN (
+                SELECT Cook_ID FROM Specialization
+                WHERE Cuisine_ID = temp_cuisine_id
+            )
+            
+            AND Cook_ID NOT IN (
+            SELECT Cook_ID FROM Episode
+            WHERE Year = input_year
+			AND Episode_Name=episode)
+            
+            ORDER BY RAND()
+            LIMIT 1;
+
+            -- Select a recipe from the chosen cuisine that hasn't been used more than 3 times in a row
+            SELECT Recipe_ID INTO temp_recipe_id
+            FROM Recipe
+            WHERE Cuisine_ID = temp_cuisine_id
+            AND Recipe_ID NOT IN (
+                SELECT Recipe_ID FROM (
+                    SELECT Recipe_ID FROM Episode
+                    WHERE Year = input_year
+                    AND Episode_Name IN (episode - 1, episode - 2, episode - 3)
+                    GROUP BY Recipe_ID
+                    HAVING COUNT(Recipe_ID) = 3
+                ) AS RecentRecipes
+            )
+            
+			AND Recipe_ID NOT IN (
+            SELECT Recipe_ID FROM Episode
+            WHERE Year = input_year
+			AND Episode_Name=episode)
+            ORDER BY RAND()
+            LIMIT 1;
+
+            -- Assign the cook and the recipe to the episode
+            INSERT INTO Episode (Episode_Name, Cook_ID, Recipe_ID, Year)
+            VALUES (episode, temp_cook_id, temp_recipe_id, input_year);
+
+            SET i = i + 1;
+        END WHILE;
+
+        -- Select judges from the Cook table
+        SET j = 1;
+        WHILE j <= 3 DO
+            -- Find a judge from the Cook table who hasn't been selected for the current episode more than 3 times in a row
+            SELECT Cook_ID INTO temp_judge_id
+            FROM Cook
+            WHERE Cook_ID NOT IN (
+                SELECT Cook_ID FROM (
+                    SELECT Cook_ID FROM Episode
+                    WHERE Year = input_year
+                    AND Episode_Name IN (episode - 1, episode - 2, episode - 3)
+                    GROUP BY Cook_ID
+                    HAVING COUNT(Cook_ID) = 3
+                ) AS RecentJudges
+            )
+            
+			AND Cook_ID NOT IN (
+            SELECT Cook_ID FROM Episode
+            WHERE Year = input_year
+			AND Episode_Name=episode)
+            ORDER BY RAND()
+            LIMIT 1;
+
+            -- Insert the judge into the episode
+            INSERT INTO Episode (Episode_Name, Cook_ID, Year)
+            VALUES (episode, temp_judge_id, input_year);
+
+            SET j = j + 1;
+        END WHILE;
+
+        SET episode = episode + 1;
+    END WHILE;
+
+END
