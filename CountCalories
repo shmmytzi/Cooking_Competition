@@ -1,0 +1,32 @@
+CREATE DEFINER=`root`@`localhost` PROCEDURE `CountCalories`()
+BEGIN
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE cur_recipe_id INT;
+    DECLARE cur_total_calories DECIMAL(10, 2);
+
+
+    DECLARE cur CURSOR FOR
+        SELECT ri.Recipe_ID, SUM((i.Calories_per_100 * ri.Ingredient_Quantity) / 100 / r.Quantity) AS total_calories
+        FROM Ingr_Rec ri
+        JOIN Ingredients i ON ri.Ingredients_ID = i.Ingredients_ID
+        JOIN Recipe r ON ri.Recipe_ID = r.Recipe_ID
+        GROUP BY ri.Recipe_ID;
+    
+ 
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+    OPEN cur;
+
+    read_loop: LOOP
+        FETCH cur INTO cur_recipe_id, cur_total_calories;
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+
+        UPDATE NutritionalInfo
+        SET Calories = cur_total_calories
+        WHERE Recipe_ID = cur_recipe_id;
+    END LOOP;
+
+    CLOSE cur;
+END
