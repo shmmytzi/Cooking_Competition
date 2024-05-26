@@ -1,0 +1,49 @@
+CREATE DEFINER=`root`@`localhost` PROCEDURE `AssignScoresToEpisode`(IN input_year INT, IN input_episode INT)
+BEGIN
+    DECLARE done INT DEFAULT 0;
+    DECLARE judge_id INT;
+
+    -- Declare a cursor to iterate through judge IDs
+    DECLARE judge_cursor CURSOR FOR
+        SELECT DISTINCT Cook_ID
+        FROM Episode
+        WHERE Year = input_year 
+        AND Episode_Name = input_episode
+        AND Cook_ID IS NOT NULL
+        AND Recipe_ID IS NULL;
+
+    -- Declare a handler to handle the end of the cursor
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+
+    -- Open the cursor
+    OPEN judge_cursor;
+
+    -- Loop through the cursor
+    judge_loop: LOOP
+        FETCH judge_cursor INTO judge_id;
+
+        IF done THEN
+            LEAVE judge_loop;
+        END IF;
+
+        -- Insert scores for each cook for the current judge
+        INSERT INTO Score (Episode_Name, Judge_ID, Cook_ID, Score_Value)
+        SELECT input_episode, judge_id, e.Cook_ID, FLOOR(1 + RAND() * 5)
+        FROM Episode e
+        WHERE e.Year = input_year 
+        AND e.Episode_Name = input_episode
+        AND e.Cook_ID != judge_id
+        AND e.Cook_ID NOT IN (
+            SELECT s.Cook_ID
+            FROM Score s
+            WHERE s.Episode_Name = input_episode
+            AND s.Judge_ID = judge_id
+        )
+        AND Recipe_ID IS NOT NULL;
+
+    END LOOP;
+
+    -- Close the cursor
+    CLOSE judge_cursor;
+
+END
